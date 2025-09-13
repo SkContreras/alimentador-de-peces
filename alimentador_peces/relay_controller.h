@@ -14,30 +14,40 @@ class RelayController {
 private:
   unsigned long feedStartTime;
   bool isFeeding;
+  int relayPins[4];
+  int activeRelays;
+
+  // Método privado para controlar todos los relays
+  void setAllRelays(bool state) {
+    for (int i = 0; i < 4; i++) {
+      digitalWrite(relayPins[i], state ? HIGH : LOW);
+    }
+  }
 
 public:
   // Constructor
-  RelayController() : feedStartTime(0), isFeeding(false) {}
+  RelayController() : feedStartTime(0), isFeeding(false), activeRelays(0) {
+    relayPins[0] = RELAY_1_PIN;
+    relayPins[1] = RELAY_2_PIN;
+    relayPins[2] = RELAY_3_PIN;
+    relayPins[3] = RELAY_4_PIN;
+  }
 
   // Inicializar los pines del relay y LED
   void begin() {
-    pinMode(RELAY_1_PIN, OUTPUT);
-    pinMode(RELAY_2_PIN, OUTPUT);
-    pinMode(RELAY_3_PIN, OUTPUT);
-    pinMode(RELAY_4_PIN, OUTPUT);
+    // Configurar pines de relays
+    for (int i = 0; i < 4; i++) {
+      pinMode(relayPins[i], OUTPUT);
+    }
     pinMode(LED_PIN, OUTPUT);
     
-    // Asegurar que el relay esté apagado al inicio
-    digitalWrite(RELAY_1_PIN, LOW);
-    digitalWrite(RELAY_2_PIN, LOW);
-    digitalWrite(RELAY_3_PIN, LOW);
-    digitalWrite(RELAY_4_PIN, LOW);
+    // Asegurar que todos los relays estén apagados al inicio
+    setAllRelays(false);
     digitalWrite(LED_PIN, LOW);
     
     // Verificar que los pines se configuraron correctamente
     delay(10);
-    if (digitalRead(RELAY_1_PIN) != LOW || digitalRead(LED_PIN) != LOW) {
-      // Error en configuración de pines
+    if (digitalRead(relayPins[0]) != LOW || digitalRead(LED_PIN) != LOW) {
       isFeeding = false;
     }
   }
@@ -48,11 +58,8 @@ public:
       return;
     }
     
-    // Activar relay y LED
-    digitalWrite(RELAY_1_PIN, HIGH);
-    digitalWrite(RELAY_2_PIN, HIGH);
-    digitalWrite(RELAY_3_PIN, HIGH);
-    digitalWrite(RELAY_4_PIN, HIGH);
+    // Activar todos los relays y LED
+    setAllRelays(true);
     digitalWrite(LED_PIN, HIGH);
     
     // Registrar tiempo de inicio
@@ -82,11 +89,8 @@ public:
   void stopFeeding() {
     if (!isFeeding) return;
     
-    // Desactivar relay y LED
-    digitalWrite(RELAY_1_PIN, LOW);
-    digitalWrite(RELAY_2_PIN, LOW);
-    digitalWrite(RELAY_3_PIN, LOW);
-    digitalWrite(RELAY_4_PIN, LOW);
+    // Desactivar todos los relays y LED
+    setAllRelays(false);
     digitalWrite(LED_PIN, LOW);
     
     isFeeding = false;
@@ -107,12 +111,16 @@ public:
     return (remaining > 0) ? remaining : 0;
   }
 
-  // Activar/desactivar relay manualmente (para pruebas)
+  // Activar/desactivar todos los relays manualmente (para pruebas)
   void setRelayState(bool state) {
-    digitalWrite(RELAY_1_PIN, state ? HIGH : LOW);
-    digitalWrite(RELAY_2_PIN, state ? HIGH : LOW);
-    digitalWrite(RELAY_3_PIN, state ? HIGH : LOW);
-    digitalWrite(RELAY_4_PIN, state ? HIGH : LOW);
+    setAllRelays(state);
+  }
+
+  // Activar/desactivar un relay específico (para pruebas individuales)
+  void setRelayState(int relayNumber, bool state) {
+    if (relayNumber >= 1 && relayNumber <= 4) {
+      digitalWrite(relayPins[relayNumber - 1], state ? HIGH : LOW);
+    }
   }
 
   // Activar/desactivar LED manualmente (para pruebas)
@@ -135,9 +143,22 @@ public:
     digitalWrite(LED_PIN, originalState);
   }
 
-  // Obtener estado actual del relay
+  // Obtener estado actual de todos los relays (true si al menos uno está activo)
   bool getRelayState() {
-    return digitalRead(RELAY_1_PIN) == HIGH;
+    for (int i = 0; i < 4; i++) {
+      if (digitalRead(relayPins[i]) == HIGH) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Obtener estado de un relay específico
+  bool getRelayState(int relayNumber) {
+    if (relayNumber >= 1 && relayNumber <= 4) {
+      return digitalRead(relayPins[relayNumber - 1]) == HIGH;
+    }
+    return false;
   }
 
   // Obtener estado actual del LED
@@ -147,12 +168,48 @@ public:
 
   // Forzar parada de emergencia
   void emergencyStop() {
-    digitalWrite(RELAY_1_PIN, LOW);
-    digitalWrite(RELAY_2_PIN, LOW);
-    digitalWrite(RELAY_3_PIN, LOW);
-    digitalWrite(RELAY_4_PIN, LOW);
+    setAllRelays(false);
     digitalWrite(LED_PIN, LOW);
     isFeeding = false;
+  }
+
+  // Iniciar alimentación con relays específicos
+  void startFeedingWithRelays(int relayMask) {
+    if (isFeeding) {
+      return;
+    }
+    
+    // Activar solo los relays especificados en el mask
+    for (int i = 0; i < 4; i++) {
+      if (relayMask & (1 << i)) {
+        digitalWrite(relayPins[i], HIGH);
+      }
+    }
+    digitalWrite(LED_PIN, HIGH);
+    
+    feedStartTime = millis();
+    isFeeding = true;
+    activeRelays = relayMask;
+  }
+
+  // Obtener número de relays activos
+  int getActiveRelayCount() {
+    int count = 0;
+    for (int i = 0; i < 4; i++) {
+      if (digitalRead(relayPins[i]) == HIGH) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  // Probar todos los relays secuencialmente
+  void testAllRelays(int delayMs = 500) {
+    for (int i = 0; i < 4; i++) {
+      digitalWrite(relayPins[i], HIGH);
+      delay(delayMs);
+      digitalWrite(relayPins[i], LOW);
+    }
   }
 };
 
